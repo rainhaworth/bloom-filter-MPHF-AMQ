@@ -4,31 +4,28 @@ import numpy as np
 import time
 
 # define lengths of K, K'
-K_lengths = [1000, 5000, 10000]
+K_lengths = [1000, 10000, 20000]
 
 # define fraction of canonical keys in K'
-# do we like do 9 trails or
 key_fracs = [0.25, 0.5, 0.75]
 
 # define expected FP rates
 error_rates = [1/(2**7), 1/(2**8), 1/(2**10)]
-print(error_rates)
 
-# define k-mer things, seed random
-nucleotides = ['A','C','G','T']
-size = 31
+# seed random
 random.seed(0)
 
-print('length frac expected_rate real_rate time size')
+print('Length Frac Expected_rate Real_rate Time Size FNs_found')
 for length in K_lengths:
     # populate K
     K = []
 
-    for i in range(length):
-        # generate 31-mers
-        K.append(''.join(random.choice(nucleotides) for _i in range(size)))
-
-    #print(K[-1])
+    for _i in range(length):
+        # generate random integers
+        num = random.randint(0, 2**32-1)
+        while num in K:
+            num = random.randint(0, 2**32-1)
+        K.append(num)
 
     for frac in key_fracs:
         # populate K'
@@ -37,10 +34,10 @@ for length in K_lengths:
 
         # non-canonical
         for i in range(len(K_), length):
-            seq = ''.join(random.choice(nucleotides) for _i in range(size))
-            while seq in K:
-                seq = ''.join(random.choice(nucleotides) for _i in range(size))
-            K_.append(seq)
+            num = random.randint(0, 2**32-1)
+            while num in K:
+                num = random.randint(0, 2**32-1)
+            K_.append(num)
         
         for rate in error_rates:
             # populate bloom filter
@@ -51,20 +48,23 @@ for length in K_lengths:
             
             # query over all K'
             queries = np.empty(len(K_), dtype=bool)
-            start = time.time()
+            start = time.process_time_ns()
             for i, seq in enumerate(K_):
                 query = seq in bloom
                 queries[i] = query
-            end = time.time()
+            end = time.process_time_ns()
             
-            # TODO: figure out timeit
-            total_time = end - start
+            # convert to ms
+            total_time = (end - start) / 1000000
 
+            # compute FP rate
             FP_rate = 0.0
             vals, counts = np.unique(queries[round(length*frac):], return_counts=True)
             if len(vals) == 2:
                 FP_rate = counts[1] / (counts[0] + counts[1])
 
-            print(length, frac, rate, FP_rate, total_time, bloom.num_bits_m)
-            #print('FN check:', np.unique(queries[:round(length*frac)], return_counts=True))
+            # check for FNs
+            canonical = np.unique(queries[:round(length*frac)])
+
+            print(length, frac, rate, round(FP_rate, 8), total_time, bloom.num_bits_m, len(canonical) != 1)
             
